@@ -226,4 +226,206 @@ maybeShowAdvice();
 
 nextBtn.addEventListener("click", () => goTo(3)); }
 
+// usp and team vote stage 
+
+function renderUspStage(host){
+const card = document.createElement("div");
+card.className = "card";
+card.innerHTML = ` <div class="eyebrow">Step 4</div>
+<h2>Choose your USP</h2> <div class="sub">What makes your project worth a second look? You can pick yourself, or let the team vote decide.</div>
+<div class="choice-grid" id="uspGrid"></div> <div class="btn-row">
+    <button class="btn" id="voteBtn">📊 Let the team vote</button>
+<button class="btn btn-primary" id="uspNextBtn" disabled>Confirm USP →</button>
+</div> `;
+host.appendChild(card);
+
+const grid = card.querySelector("#uspGrid");
+  const nextBtn = card.querySelector("#uspNextBtn");
+let votesRevealed = false;
+
+function drawUsp(){ grid.innerHTML = USP_OPTIONS.map(opt => `<div class="choice ${state.usp===opt.name?'selected':''}" data-opt="${opt.name}">
+${opt.name}
+${votesRevealed ? `<span class="votes">${opt.votes} vote${opt.votes!==1?'s':''}</span>` : ''}
+</div> `).join("");
+grid.querySelectorAll(".choice").forEach(el => {
+el.addEventListener("click", () => { state.usp = el.dataset.opt;
+    commit("usp", state.usp);
+drawUsp();
+nextBtn.disabled = false;
+});
+    });
+}
+drawUsp();
+
+card.querySelector("#voteBtn").addEventListener("click", (e) => { votesRevealed = true;
+    const winner = USP_OPTIONS.reduce((a,b) => a.votes > b.votes ? a : b);
+state.usp = winner.name;
+    commit("usp", state.usp + " (team vote)");
+drawUsp();
+nextBtn.disabled = false;
+e.target.disabled = true;
+    e.target.textContent = "✓ Votes counted"; });
+
+  nextBtn.addEventListener("click", () => goTo(4));
+}
+// drag and drop feature priority stage 
+function renderFeaturesStage(host){
+if(state.features.length === 0){ state.features = [...DEFAULT_FEATURES]; }
+
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = ` <div class="eyebrow">Step 5</div>
+<h2>Prioritize your features</h2>
+<div class="sub">Drag to reorder. Top of the list ships first — be honest about what you can actually finish.</div>
+    <div class="feature-list" id="featureList"></div>
+<div class="btn-row">
+<button class="btn btn-primary" id="featuresNextBtn">Lock priorities →</button>
+ </div> `;
+host.appendChild(card);
+
+const list = card.querySelector("#featureList");
+let dragIndex = null;
+
+function drawList(){ list.innerHTML = "";
+state.features.forEach((feat, i) => {
+const item = document.createElement("div");
+item.className = "feature-item";
+    item.draggable = true;
+item.dataset.index = i;
+    item.innerHTML = `<span class="rank">${i+1}</span><span class="grip">⠿⠿</span><span>${feat}</span>`;
+
+item.addEventListener("dragstart", () => {
+dragIndex = i;
+item.classList.add("dragging");
+});
+    item.addEventListener("dragend", () => {
+item.classList.remove("dragging"); });
+    item.addEventListener("dragover", (e) => e.preventDefault());
+item.addEventListener("drop", (e) => {
+e.preventDefault();
+    const dropIndex = Number(item.dataset.index);
+if(dragIndex === null || dragIndex === dropIndex) return;
+const moved = state.features.splice(dragIndex, 1)[0];
+        state.features.splice(dropIndex, 0, moved);
+    dragIndex = null;
+    drawList(); });
+
+list.appendChild(item);
+});
+}
+drawList();
+
+card.querySelector("#featuresNextBtn").addEventListener("click", () => { commit("feature_priority", state.features[0]);
+goTo(5); });
+}
+
+// pitching stage 
+// Quick check for real word content — catches keyboard mashing like jkjkkjk or asdasd without needing a dictionary. Not bulletproof, but enough to stop obvious junk from sailing through.
+function looksLikeRealText(str, minWords){
+  const trimmed = str.trim();
+if(trimmed.length === 0) return false;
+
+// rejecting strings that are just one character repeated (like aaaaa)
+  if(/^(.)\1*$/.test(trimmed)) return false;
+
+const words = trimmed.split(/\s+/).filter(Boolean);
+  if(words.length < minWords) return false;
+
+// every word must have at least one vowel and not be pure keyboard-row mashing. this is a heuristic, not a dictionary check — real short words still pass.
+const vowelPattern = /[aeiou]/i;
+  const realWords = words.filter(w => {
+const letters = w.replace(/[^a-zA-Z]/g, "");
+if(letters.length === 0) return false; // pure numbers/symbols don't count as a word
+    if(letters.length >= 3 && !vowelPattern.test(letters)) return false; // "jkjkkjk", "xqzpt"
+    return true; });
+
+return realWords.length >= minWords;}
+
+function renderPitchStage(host){ const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = ` <div class="eyebrow">Step 6</div>
+<h2>Build your pitch</h2> <div class="sub">Two minutes in front of the judge. Name the project, then sell it in one line — actual words, the judge can tell the difference.</div>
+<div class="field"> <span class="field-label">Project name</span>
+<input type="text" id="pitchNameInput" placeholder="e.g. MessKeeper" value="${state.pitchName}"> <span class="field-error" id="nameError"></span>
+</div>
+<div class="field">
+    <span class="field-label">One-line pitch</span>
+<textarea id="pitchTaglineInput" placeholder="What does it do, and why should the judge care?">${state.pitchTagline}</textarea>
+<span class="field-error" id="taglineError"></span> </div>
+ <div class="btn-row">
+<button class="btn btn-primary" id="pitchNextBtn" disabled>Finalize pitch →</button> </div> `;
+  host.appendChild(card);
+
+const nameInput = card.querySelector("#pitchNameInput");
+  const taglineInput = card.querySelector("#pitchTaglineInput");
+const nextBtn = card.querySelector("#pitchNextBtn");
+const nameError = card.querySelector("#nameError");
+const taglineError = card.querySelector("#taglineError");
+
+function checkReady(){ const nameOk = looksLikeRealText(nameInput.value, 1);
+const taglineOk = looksLikeRealText(taglineInput.value, 4);
+
+nameInput.classList.toggle("invalid", nameInput.value.trim().length > 0 && !nameOk);
+taglineInput.classList.toggle("invalid", taglineInput.value.trim().length > 0 && !taglineOk);
+nameError.textContent = (nameInput.value.trim().length > 0 && !nameOk) ? "That doesn't look like a real name — give your project an actual one." : "";
+    taglineError.textContent = (taglineInput.value.trim().length > 0 && !taglineOk) ? "Write a real sentence (at least 4 words) — the judge can tell when it's keyboard mashing."
+: "";
+nextBtn.disabled = !(nameOk && taglineOk); }
+
+nameInput.addEventListener("input", () => { state.pitchName = nameInput.value; checkReady(); });
+  taglineInput.addEventListener("input", () => { state.pitchTagline = taglineInput.value; checkReady(); });
+checkReady();
+
+nextBtn.addEventListener("click", () => {
+    commit("pitch.name", state.pitchName);
+goTo(6);});
+}
+
+// final stage of submission and judging 
+function renderSubmitStage(host){ const card = document.createElement("div");
+  card.className = "card";
+
+if(state.score === null){ card.innerHTML = ` <div class="eyebrow">Step 7</div>
+<h2>Final review before you submit</h2> <div class="sub">Here's everything you locked in. Once you submit, the judge sees exactly this.</div>
+<div class="recap">
+<div>Team <span>${state.team.map(m=>m.name).join(', ')}</span></div>
+    <div>Frontend <span>${state.techFrontend}</span></div>
+<div>Backend <span>${state.techBackend}</span></div>
+<div>USP <span>${state.usp}</span></div> <div>Top feature <span>${state.features[0]}</span></div>
+<div>Project <span>${state.pitchName}</span></div>
+</div> <div class="btn-row">
+<button class="btn btn-primary" id="submitBtn">🚀 Submit to judge</button>
+</div> `;
+host.appendChild(card);
+card.querySelector("#submitBtn").addEventListener("click", () => { commit("submission", "sent to judge");
+    state.score = judgeProject();
+render(); });
+return; }
+
+  const { points, good, lines } = state.score;
+  const verdictClass = good ? "good" : "bad";
+
+card.innerHTML = `
+<div class="eyebrow">Final verdict</div>
+    <div class="verdict">
+      <h2>${state.pitchName || "Your project"}</h2>
+      <div class="score-num ${verdictClass}">${points}<span class="score-out">/100</span></div>
+ </div>
+  ${lines.map(l => `
+   <div class="judge-line ${verdictClass}">
+    <span class="who">The Judge</span>
+ ${l}
+      </div> `).join("")}
+    <div class="btn-row">
+      <button class="btn btn-primary" id="restartBtn">↻ Run it again</button>
+    </div>
+`;
+host.appendChild(card);
+
+card.querySelector("#restartBtn").addEventListener("click", () => {  Object.assign(state, {
+    stage: 0, team: [], problem: null, techFrontend: null, techBackend: null,
+usp: null, features: [], pitchName: "", pitchTagline: "", score: null, });
+document.getElementById("commitLines").innerHTML = ""; goTo(0);
+});
+}
 
