@@ -85,17 +85,145 @@ function goTo(stageIndex){
 renderPips();
 render(); }
 
-function render(){
-  const host = document.getElementById("stageHost");
-  const renderers = [
-    renderTeamStage,
-    renderProblemStage,
-    renderStackStage,
-    renderUspStage,
-    renderFeaturesStage,
-    renderPitchStage,
-    renderSubmitStage,
-  ];
-  host.innerHTML = "";
-  renderers[state.stage](host);
+function render(){ const host = document.getElementById("stageHost");
+const renderers = [ renderTeamStage,
+renderProblemStage, renderStackStage,
+renderUspStage, renderFeaturesStage,
+renderPitchStage, renderSubmitStage, ];
+host.innerHTML = "";
+renderers[state.stage](host); }
+
+// team building stage 
+function renderTeamStage(host){
+if(state.team.length === 0){ state.team.push({ id: teamIdCounter++, name: "Anjali", role: "Backend Dev" });
+state.team.push({ id: teamIdCounter++, name: "", role: "Designer" }); }
+
+    const card = document.createElement("div");
+card.className = "card";
+  card.innerHTML = ` <div class="eyebrow">Step 1</div>
+<h2>Build your team</h2> <div class="sub">Add your teammates and give them a role. Someone needs to be the backend person — they'll have opinions later.</div>
+ <div class="team-grid" id="teamGrid"></div>
+<button class="btn" id="addMemberBtn">+ Add teammate</button> <div class="btn-row">
+ <button class="btn btn-primary" id="teamNextBtn">Lock in team →</button>
+</div> `;
+host.appendChild(card);
+
+function drawRows(){ const grid = card.querySelector("#teamGrid"); grid.innerHTML = "";
+state.team.forEach((member) => { const row = document.createElement("div");
+row.className = "member-row"; row.innerHTML = `  <input type="text" placeholder="Teammate name" value="${member.name}" data-id="${member.id}" class="nameInput">
+        <select data-id="${member.id}" class="roleSelect">
+${ROLES.map(r => `<option value="${r}" ${r===member.role?'selected':''}>${r}</option>`).join("")}
+</select>
+        <button class="remove-btn" data-id="${member.id}" title="Remove">✕</button> `;
+grid.appendChild(row); });
+
+grid.querySelectorAll(".nameInput").forEach(inp => { inp.addEventListener("input", e => {
+const id = Number(e.target.dataset.id);
+    state.team.find(m => m.id === id).name = e.target.value;
+        validateTeam(); }); });
+grid.querySelectorAll(".roleSelect").forEach(sel => { sel.addEventListener("change", e => { const id = Number(e.target.dataset.id);
+    state.team.find(m => m.id === id).role = e.target.value; }); });
+grid.querySelectorAll(".remove-btn").forEach(btn => { btn.addEventListener("click", e => {
+const id = Number(e.target.dataset.id); state.team = state.team.filter(m => m.id !== id);
+drawRows(); validateTeam();
+}); }); }
+
+function validateTeam(){ const named = state.team.filter(m => m.name.trim().length > 0);
+card.querySelector("#teamNextBtn").disabled = named.length === 0; }
+drawRows();
+validateTeam();
+card.querySelector("#addMemberBtn").addEventListener("click", () => { state.team.push({ id: teamIdCounter++, name: "", role: "Frontend Dev" });
+drawRows(); validateTeam(); });
+card.querySelector("#teamNextBtn").addEventListener("click", () => { state.team = state.team.filter(m => m.name.trim().length > 0);
+commit("team", state.team.map(m => `${m.name} (${m.role})`).join(", "));
+    goTo(1);
+});
 }
+// problem statement stage 
+function renderProblemStage(host){
+  if(!state.problem){ state.problem = PROBLEMS[Math.floor(Math.random() * PROBLEMS.length)]; }
+
+const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = ` <div class="eyebrow">Step 2</div>
+<h2>Your problem statement</h2> <div class="sub">This is what you're solving. No swapping it for an easier one — that's not how real hackathons work either.</div>
+<div class="statement-box">
+      <span class="tag">${state.problem.tag}</span>
+    ${state.problem.text}
+</div>
+<div class="btn-row">
+    <button class="btn btn-ghost" id="rerollBtn">🎲 Reroll (costs you nothing but dignity :) )</button>
+<button class="btn btn-primary" id="acceptBtn">Accept challenge →</button>
+</div> `;
+  host.appendChild(card);
+
+card.querySelector("#rerollBtn").addEventListener("click", () => { let next;
+do { next = PROBLEMS[Math.floor(Math.random() * PROBLEMS.length)]; }
+while (next.text === state.problem.text && PROBLEMS.length > 1); state.problem = next;
+render(); });
+
+card.querySelector("#acceptBtn").addEventListener("click", () => { commit("problem_statement", state.problem.text.slice(0, 40) + "...");
+goTo(2); }); }
+
+// tech stack stage 
+
+function renderStackStage(host){ const card = document.createElement("div");
+card.className = "card";
+  card.innerHTML = ` <div class="eyebrow">Step 3</div>
+<h2>Pick your tech stack</h2>
+<div class="sub">A web app is the right call here. Frontend first, then ask your team about the backend.</div>
+
+<div class="section-label">Frontend</div>
+<div class="choice-grid" id="frontendGrid"></div>
+
+<div id="adviceSlot"></div>
+<div class="section-label">Backend</div>
+<div class="choice-grid" id="backendGrid"></div>
+
+<div class="btn-row">
+    <button class="btn btn-primary" id="stackNextBtn" disabled>Confirm stack →</button> </div> `;
+  host.appendChild(card);
+
+  const fGrid = card.querySelector("#frontendGrid");
+  const bGrid = card.querySelector("#backendGrid");
+  const adviceSlot = card.querySelector("#adviceSlot");
+  const nextBtn = card.querySelector("#stackNextBtn");
+  const backendDev = state.team.find(m => m.role === "Backend Dev");
+
+function drawFrontend(){
+fGrid.innerHTML = FRONTEND_OPTIONS.map(opt => ` <div class="choice ${state.techFrontend===opt?'selected':''}" data-opt="${opt}">${opt}</div> `).join("");
+fGrid.querySelectorAll(".choice").forEach(el => {
+el.addEventListener("click", () => {
+     state.techFrontend = el.dataset.opt;
+commit("tech_stack.frontend", state.techFrontend);
+drawFrontend();
+    maybeShowAdvice();
+checkReady(); });
+});
+}
+
+function maybeShowAdvice(){ if(state.techFrontend && backendDev && !state.techBackend){
+const suggestion = "Bun";
+adviceSlot.innerHTML = `
+    <div class="advice-box">
+<div class="avatar">${backendDev.name.charAt(0).toUpperCase()}</div> <div>
+<b>${backendDev.name}</b> (${backendDev.role}): "${state.techFrontend} on the frontend? Cool, don't overthink the backend — go with <b>${suggestion}</b>. It's fast to set up and we won't waste hours fighting config at 2am."
+</div>
+</div> `; } }
+
+function drawBackend(){ bGrid.innerHTML = BACKEND_OPTIONS.map(opt => `
+<div class="choice ${state.techBackend===opt?'selected':''}" data-opt="${opt}">${opt}</div> `).join("");
+    bGrid.querySelectorAll(".choice").forEach(el => { el.addEventListener("click", () => { state.techBackend = el.dataset.opt;
+commit("tech_stack.backend", state.techBackend); drawBackend();
+checkReady(); });
+}); }
+
+function checkReady(){ nextBtn.disabled = !(state.techFrontend && state.techBackend); }
+drawFrontend();
+  drawBackend();
+maybeShowAdvice();
+  checkReady();
+
+nextBtn.addEventListener("click", () => goTo(3)); }
+
+
