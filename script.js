@@ -429,3 +429,53 @@ document.getElementById("commitLines").innerHTML = ""; goTo(0);
 });
 }
 
+// judging logic 
+function judgeProject(){ let points = 40; 
+  const lines = [];
+
+  if(state.techBackend === "Bun" || state.techBackend === "Node.js"){
+    points += 12;
+    lines.push(`Decent stack — ${state.techFrontend} and ${state.techBackend} is a sensible pick for a 24-hour build. Nothing flashy, but it'll actually run.`);} 
+else {
+    points += 6;
+    lines.push(`${state.techFrontend} with ${state.techBackend}? Bold. I hope someone on this team actually knows ${state.techBackend}, because explaining it during Q&A won't save you.`);
+}
+
+// USP
+if(state.usp === "Dead simple UI" || state.usp === "Zero sign-up"){
+    points += 18;
+    lines.push(`Going with "${state.usp}" as your USP is smart — judges reward things they can understand in ten seconds. Good instinct.`);} 
+   else {
+    points += 10;
+    lines.push(`"${state.usp}" is a fine USP on paper, but did anyone actually finish building it, or is it a slide?`);}
+
+// feature priority
+if(state.features[0] && state.features[0].toLowerCase().includes("core")){
+    points += 15;
+    lines.push("You prioritized the actual core feature first. Refreshing — most teams build five login pages and call it a day.");}
+   else {
+    points += 5;
+    lines.push(`You built "${state.features[0]}" first instead of the feature that actually solves the problem. Classic hackathon mistake.`);}
+
+  const tagline = state.pitchTagline.trim();
+  const taglineWordCount = tagline.split(/\s+/).filter(Boolean).length;
+  if(taglineWordCount >= 8){
+    points += 10;
+    lines.push(`The pitch for "${state.pitchName}" actually explains what it does. Refreshing change from the usual buzzword soup.`);
+  } else {
+    points += 5;
+    lines.push(`Your one-liner for "${state.pitchName}" is technically a sentence, but say more — what does it actually do?`);
+  }
+
+// team factor
+  if(state.team.length >= 3){ points += 5; } 
+else { lines.push("A two-person team for this scope? Respect the hustle, but it shows in the gaps."); }
+  points = Math.min(100, Math.max(8, points));
+  const good = points >= 60;
+
+if(good){ lines.unshift(`Solid run. This one's actually shippable — approved.`); } 
+else { lines.unshift(`I've seen worse. I've also seen much better. Here's the roast you signed up for:`); }
+
+return { points, good, lines };}
+renderPips();
+render();
